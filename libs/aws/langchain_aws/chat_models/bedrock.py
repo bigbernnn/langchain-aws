@@ -316,7 +316,7 @@ class ChatPromptAdapter:
         )
 
 
-_message_type_lookups = {"human": "user", "ai": "assistant"}
+_message_type_lookups = {"human": "user", "ai": "assistant", "tool": "user"}
 
 
 class ChatBedrock(BaseChatModel, BedrockBase):
@@ -407,6 +407,8 @@ class ChatBedrock(BaseChatModel, BedrockBase):
         provider_stop_reason_code = self.provider_stop_reason_key_map.get(
             self._get_provider(), "stop_reason"
         )
+        tool_calls = []
+
         if self.streaming:
             response_metadata: List[Dict[str, Any]] = []
             for chunk in self._stream(messages, stop, run_manager, **kwargs):
@@ -455,12 +457,21 @@ class ChatBedrock(BaseChatModel, BedrockBase):
                 llm_output["stop_reason"] = "end_turn"
 
         llm_output["model_id"] = self.model_id
+
+        if tool_calls:
+            ai_message = AIMessage(
+                content=completion,
+                tool_calls=tool_calls,
+                additional_kwargs=llm_output,
+            )
+        else:
+            ai_message = AIMessage(
+                content=completion,
+                additional_kwargs=llm_output,
+            )
+
         return ChatResult(
-            generations=[
-                ChatGeneration(
-                    message=AIMessage(content=completion, additional_kwargs=llm_output)
-                )
-            ],
+            generations=[ChatGeneration(message=ai_message)],
             llm_output=llm_output,
         )
 
